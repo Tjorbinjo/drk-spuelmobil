@@ -4,7 +4,9 @@ const teardown = ['Maschine ausschalten und abkühlen lassen.','Grobsiebe, Filte
 const dishes = ['Teller und Schalen vollständig, sauber und trocken','Tassen, Gläser und Besteck sauber und sortiert','Kisten/Transportboxen sauber, vollständig und verschlossen','Arbeitsflächen, Abfall und Boden gereinigt','Maschine, Filter und Siebe nach Anleitung gereinigt'];
 let signatureCanvas;
 const $ = (selector) => document.querySelector(selector);
-const supabase = window.supabase.createClient(window.DRK_SUPABASE.url, window.DRK_SUPABASE.publishableKey);
+const supabaseClient = window.supabase?.createClient && window.DRK_SUPABASE
+  ? window.supabase.createClient(window.DRK_SUPABASE.url, window.DRK_SUPABASE.publishableKey)
+  : null;
 
 function renderRoleChoice() {
   $('#app').innerHTML = `<div class="shell helper welcome"><header class="brand"><div class="cross">✚</div><div><h1>DRK · Spülmobil</h1><small>Bereitschaft · digital organisiert</small></div></header><section class="card hero welcome-hero"><p class="eyebrow">WILLKOMMEN</p><h2>Was möchtest du öffnen?</h2><p class="muted">Wähle deinen Bereich für eine schnelle und passende Ansicht.</p><div class="choice-grid"><button class="choice-card helper-choice" onclick="showHelperWelcome()"><span>🧤</span><strong>Helfer</strong><small>Anleitung, Dienst und PDF</small></button><button class="choice-card admin-choice" onclick="showAdminWelcome()"><span>⚙</span><strong>Beauftragter</strong><small>Spülmobile verwalten</small></button></div></section></div>`;
@@ -31,7 +33,7 @@ function showHelper() {
 
 function showAdminLogin() {
   $('#app').innerHTML = `<div class="shell admin"><header class="brand"><div class="cross">✚</div><div><h1>DRK · Spülmobil</h1><small>Bereich für Beauftragte</small></div></header><div class="actions"><button class="secondary" type="button" onclick="renderRoleChoice()">← Bereich wechseln</button></div><section class="card hero"><h2>Anmeldung</h2><p class="muted">Dieser Bereich ist für den Spülmobilbeauftragten bestimmt.</p><form id="admin-login"><label>E-Mail-Adresse</label><input type="email" required autocomplete="username" placeholder="name@beispiel.de"><label>Passwort</label><input type="password" required autocomplete="current-password"><div class="actions"><button class="primary" type="submit">Anmelden</button></div></form></section></div>`;
-  $('#admin-login').addEventListener('submit', async event => { event.preventDefault(); const f = event.currentTarget.elements; const { error } = await supabase.auth.signInWithPassword({ email: f[0].value, password: f[1].value }); if (error) return alert('Anmeldung fehlgeschlagen.'); showAdminOverview(); });
+  $('#admin-login').addEventListener('submit', async event => { event.preventDefault(); if (!supabaseClient) return alert('Die Datenbankverbindung konnte nicht geladen werden. Bitte die Seite online öffnen.'); const f = event.currentTarget.elements; const { error } = await supabaseClient.auth.signInWithPassword({ email: f[0].value, password: f[1].value }); if (error) return alert('Anmeldung fehlgeschlagen.'); showAdminOverview(); });
 }
 
 function addHelperMenu() {
@@ -67,10 +69,11 @@ function hasSignature() { return signatureCanvas.getContext('2d').getImageData(0
 
 async function createAndSharePdf(event) {
   event.preventDefault();
+  if (!supabaseClient) return alert('Die Datenbankverbindung konnte nicht geladen werden. Bitte die Seite online öffnen.');
   if (!hasSignature()) return alert('Bitte unterschreiben Sie vor dem Abschließen.');
   const form = new FormData(event.currentTarget);
   const report = { mobile: mobiles[form.get('mobile')], date: form.get('date'), time: form.get('time'), name: form.get('name'), secondPerson: form.get('secondPerson') || 'Keine', event: form.get('event'), notes: form.get('notes') || 'Keine' };
-  const { error } = await supabase.from('spuel_dienste').insert({ spuelmobil: form.get('mobile'), dienst_datum: report.date, dienst_zeit: report.time, verantwortliche_person: report.name, zweite_person: form.get('secondPerson') || null, einsatzort: report.event, kontrollen: { aufbau: true, geschirr: true, abbau: true }, bemerkungen: form.get('notes') || null, unterschrift: signatureCanvas.toDataURL('image/png') });
+  const { error } = await supabaseClient.from('spuel_dienste').insert({ spuelmobil: form.get('mobile'), dienst_datum: report.date, dienst_zeit: report.time, verantwortliche_person: report.name, zweite_person: form.get('secondPerson') || null, einsatzort: report.event, kontrollen: { aufbau: true, geschirr: true, abbau: true }, bemerkungen: form.get('notes') || null, unterschrift: signatureCanvas.toDataURL('image/png') });
   if (error) return alert(`Dienst konnte nicht gespeichert werden: ${error.message}`);
   alert('Dienst gespeichert. Die PDF wird im Manager exportiert.');
   showHelperWelcome();
