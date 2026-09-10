@@ -69,7 +69,10 @@ function shell(title, subtitle, body, kind = 'helper') {
   $('#app').innerHTML = `
     <main class="shell ${kind}">
       <header class="brand">
-        <div class="drk-mark"><b>✚</b><span>Deutsches<br>Rotes Kreuz</span></div>
+        <div class="drk-mark" aria-label="Deutsches Rotes Kreuz">
+          <span class="drk-cross" aria-hidden="true"></span>
+          <span class="drk-wordmark">Deutsches<br>Rotes Kreuz</span>
+        </div>
         <div class="brand-copy">
           <span class="brand-prefix">EINSATZ-APP</span>
           <h1>${esc(title)}</h1>
@@ -78,7 +81,7 @@ function shell(title, subtitle, body, kind = 'helper') {
         <div class="brand-unit"><span>o.V.</span> MOERS</div>
       </header>
       <div class="screen-content">${body}</div>
-      <footer class="app-footer"><span>✚ Deutsches Rotes Kreuz</span><span>Spülmobil · o.V. Moers</span></footer>
+      <footer class="app-footer"><span>Deutsches Rotes Kreuz</span><span>Spülmobil · o.V. Moers</span></footer>
     </main>`;
   return viewSerial;
 }
