@@ -70,10 +70,15 @@ function shell(title, subtitle, body, kind = 'helper') {
     <main class="shell ${kind}">
       <header class="brand">
         <div class="drk-mark"><b>✚</b><span>Deutsches<br>Rotes Kreuz</span></div>
-        <div class="brand-rule"></div>
-        <div><h1>${esc(title)}</h1><small>${esc(subtitle)}</small></div>
+        <div class="brand-copy">
+          <span class="brand-prefix">EINSATZ-APP</span>
+          <h1>${esc(title)}</h1>
+          <small>${esc(subtitle)}</small>
+        </div>
+        <div class="brand-unit"><span>o.V.</span> MOERS</div>
       </header>
-      ${body}
+      <div class="screen-content">${body}</div>
+      <footer class="app-footer"><span>✚ Deutsches Rotes Kreuz</span><span>Spülmobil · o.V. Moers</span></footer>
     </main>`;
   return viewSerial;
 }
@@ -86,10 +91,10 @@ function home() {
       <p>Die Helfer-App ist ohne Anmeldung nutzbar. Der Manager ist nur für Beauftragte.</p>
       <div class="choice-grid">
         <button class="choice-card helper-choice" onclick="helperHome()">
-          <span>🧤</span><strong>Helfer</strong><small>Anleitungen und Dienstabschluss</small>
+          <span class="choice-code">01</span><strong>Helferbereich</strong><small>Anleitungen und Dienstabschluss</small><i aria-hidden="true">→</i>
         </button>
         <button class="choice-card admin-choice" onclick="adminLogin()">
-          <span>⚙</span><strong>Beauftragter</strong><small>Manager und Dienstübersicht</small>
+          <span class="choice-code">02</span><strong>Beauftragter</strong><small>Manager und Dienstübersicht</small><i aria-hidden="true">→</i>
         </button>
       </div>
     </section>`);
@@ -103,10 +108,10 @@ function helperHome() {
       <p>Die Anleitung bleibt während des Einsatzes verfügbar. Den Dienst schließt du erst am Ende ab.</p>
       <div class="choice-grid">
         <button class="choice-card helper-choice" onclick="serviceForm()">
-          <span>＋</span><strong>Dienst anlegen</strong><small>Endkontrolle und Unterschrift</small>
+          <span class="choice-code">A</span><strong>Dienstabschluss</strong><small>Endkontrolle, Fehlmengen und Unterschrift</small><i aria-hidden="true">→</i>
         </button>
         <button class="choice-card document-choice" onclick="documents('helper')">
-          <span>▤</span><strong>Dokumentation</strong><small>Aufbau, Abbau und Fehlerhilfe</small>
+          <span class="choice-code">B</span><strong>Dokumentation</strong><small>Aufbau, Abbau und Fehlerhilfe</small><i aria-hidden="true">→</i>
         </button>
       </div>
       <div class="actions"><button class="secondary" onclick="home()">← Zurück</button></div>
