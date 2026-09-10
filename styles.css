@@ -92,17 +92,25 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.drk-mark b {
-  display: grid;
+.drk-cross {
+  position: relative;
   width: 42px;
   height: 42px;
-  place-items: center;
-  border-radius: 6px;
-  background: #fff;
-  color: var(--signal);
-  font-size: 28px;
-  line-height: 1;
 }
+
+.drk-cross::before,
+.drk-cross::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 1px;
+  background: var(--signal);
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.drk-cross::before { width: 35px; height: 11px; }
+.drk-cross::after { width: 11px; height: 35px; }
 
 .brand-copy { min-width: 0; }
 
@@ -553,7 +561,9 @@ textarea { min-height: 88px; resize: vertical; }
   .shell::before { width: 7px; }
   .brand { gap: 10px; margin-bottom: 21px; padding: 10px; border-radius: 0 14px 14px 14px; }
   .drk-mark { grid-template-columns: 36px; min-width: 36px; }
-  .drk-mark b { width: 36px; height: 36px; font-size: 24px; }
+  .drk-cross { width: 36px; height: 36px; }
+  .drk-cross::before { width: 30px; height: 9px; }
+  .drk-cross::after { width: 9px; height: 30px; }
   .drk-mark span, .brand-unit { display: none; }
   .brand h1 { font-size: 1rem; }
   .brand-prefix { font-size: .55rem; }
