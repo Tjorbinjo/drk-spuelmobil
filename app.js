@@ -1,4 +1,5 @@
 const ADMIN_EMAIL = 'tmattes04@gmail.com';
+const CLEANING_PHOTOS = ['Arbeitsfläche der linken Klappe', 'Arbeitsfläche der rechten Klappe', 'Innenraum der Spülmaschine'];
 
 const MOBILES = {
   mobil1: 'Spülmobil 1',
@@ -28,9 +29,9 @@ const TROUBLESHOOTING = [
 ];
 
 const DISHES = [
-  'Teller und Schalen vollständig, sauber und trocken',
+  'Teller und Schalen sauber und trocken; Fehlmengen unten erfasst',
   'Tassen, Gläser und Besteck sauber und sortiert',
-  'Kisten und Transportboxen sauber und vollständig',
+  'Kisten und Transportboxen sauber und kontrolliert',
   'Arbeitsflächen, Abfall und Boden gereinigt',
   'Maschine, Filter und Siebe nach Anleitung gereinigt'
 ];
@@ -107,6 +108,7 @@ function helperHome() {
   shell('DRK · Spülmobil', 'Helferbereich · o.V. Moers', `
     <section class="hero welcome-hero">
       <p class="eyebrow">HELFERBEREICH</p>
+      <div id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</div>
       <h2>Bereit für den Einsatz?</h2>
       <p>Die Anleitung bleibt während des Einsatzes verfügbar. Den Dienst schließt du erst am Ende ab.</p>
       <div class="choice-grid">
@@ -119,6 +121,71 @@ function helperHome() {
       </div>
       <div class="actions"><button class="secondary" onclick="home()">← Zurück</button></div>
     </section>`);
+  loadMobileStatus();
+}
+
+async function loadMobileStatus(admin = false) {
+  const serial = viewSerial;
+  try {
+    if (!db) throw new Error('Keine Verbindung');
+    const { data, error } = await db.from('spuelmobil_status').select('*').order('spuelmobil');
+    if (error || data?.length !== 2) throw error || new Error('Status fehlt');
+    if (serial !== viewSerial || !$('#mobile-status')) return;
+    $('#mobile-status').innerHTML = data.map(row => `<div class="notice">
+      <strong>${esc(MOBILES[row.spuelmobil])}: ${row.ausser_dienst ? 'Außer Dienst – Geschirr fehlt' : 'Einsatzbereit'}</strong>
+      ${row.ausser_dienst && admin ? `<button type="button" class="secondary" onclick="confirmRestock('${row.spuelmobil}', '${esc(row.version)}', this)">Geschirr aufgefüllt bestätigen</button>` : ''}
+    </div>`).join('');
+  } catch {
+    if (serial === viewSerial && $('#mobile-status')) $('#mobile-status').textContent = 'Einsatzstatus unbekannt. Bitte Verbindung prüfen oder den Beauftragten kontaktieren.';
+  }
+}
+
+async function confirmRestock(mobile, version, button) {
+  if (!confirm(`${MOBILES[mobile]}: Wurde das gesamte fehlende Geschirr aufgefüllt? Mit der Bestätigung wird das Spülmobil wieder einsatzbereit.`)) return;
+  button.disabled = true;
+  try {
+    const { error } = await db.rpc('bestaetige_geschirr_aufgefuellt', { mobil: mobile, erwartete_version: version });
+    if (error) throw error;
+  } catch (error) {
+    alert(`Bestätigung fehlgeschlagen: ${error.message || 'Bitte Verbindung prüfen.'}`);
+  }
+  await loadMobileStatus(true);
+}
+
+function validPhoto(value) {
+  return typeof value === 'string' && value.length <= 450000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
+async function preparePhoto(file, label) {
+  if (!file?.size) throw new Error(`Bitte ein Foto hochladen: ${label}.`);
+  if (file.size > 20 * 1024 * 1024) throw new Error(`${label}: Das Foto darf höchstens 20 MB groß sein.`);
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.8, 0.65, 0.5, 0.35]) {
+      const result = canvas.toDataURL('image/jpeg', quality);
+      if (validPhoto(result)) return result;
+    }
+    throw new Error('Das Bild ist zu detailreich. Bitte ein kleineres Foto auswählen.');
+  } catch (error) {
+    throw new Error(`${label}: ${error.message || 'Foto nicht lesbar.'} Bitte gegebenenfalls JPEG oder PNG verwenden.`);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function cleaningPhotosHtml(kontrollen) {
+  return `<div class="cleaning-photos">${CLEANING_PHOTOS.map((label, index) => {
+    const src = kontrollen.reinigungsfotos?.[`foto_${index}`];
+    return `<figure><figcaption>${esc(label)}</figcaption>${validPhoto(src) ? `<img src="${esc(src)}" alt="Reinigungsnachweis: ${esc(label)}" loading="lazy">` : '<p>Kein Foto vorhanden.</p>'}</figure>`;
+  }).join('')}</div>`;
 }
 
 function steps(items) {
@@ -181,6 +248,7 @@ function serviceForm() {
       <button class="menu-item" onclick="documents('helper')">Dokumentation</button>
     </nav>
     <form id="service">
+      <div id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</div>
       <section class="card">
         <h2>Angaben zum Dienst</h2>
         <label>Spülmobil
@@ -209,11 +277,18 @@ function serviceForm() {
 
       <section class="card">
         <h2>Fehlmengen Geschirr</h2>
+        <p>Fehlendes Geschirr setzt das Spülmobil automatisch außer Dienst, bis ein Beauftragter das Auffüllen bestätigt.</p>
         <p class="muted">Nur fehlende Teile eintragen. Wenn nichts fehlt, alle Felder auf 0 lassen.</p>
         <div class="missing-grid">${missingInputs}</div>
         <label>Bemerkungen zu Fehlmengen<textarea name="missing_notes" placeholder="Zum Beispiel: Beschädigung, Verlust oder Nachbestellung"></textarea></label>
       </section>
 
+      <section class="card">
+        <h2>Reinigung mit Fotos bestätigen</h2>
+        <p>Bitte nach der Reinigung jede Klappen-Arbeitsfläche und den Innenraum der Spülmaschine fotografieren. Drei Fotos sind erforderlich. Kamera oder Galerie verwenden; maximal 20 MB pro Foto.</p>
+        ${CLEANING_PHOTOS.map((label, index) => `<label>${esc(label)}<input name="photo_${index}" type="file" accept="image/*" required></label>`).join('')}
+        <label class="check"><input type="checkbox" name="cleaning_confirmed" required>Die drei Fotos zeigen die gereinigten Bereiche dieses Dienstes.</label>
+      </section>
       <section class="card">
         <h2>Unterschrift</h2>
         <p class="muted">Bitte mit dem Finger unterschreiben.</p>
@@ -232,6 +307,7 @@ function serviceForm() {
   form.time.value = new Date().toTimeString().slice(0, 5);
   initSignature();
   form.onsubmit = submitService;
+  loadMobileStatus();
 }
 
 function initSignature() {
@@ -314,6 +390,12 @@ async function submitService(event) {
   };
 
   try {
+    if (form.get('cleaning_confirmed') !== 'on') throw new Error('Bitte die Reinigung mit aktuellen Fotos bestätigen.');
+    kontrollen.reinigungsfotos = {};
+    for (const [index, label] of CLEANING_PHOTOS.entries()) {
+      kontrollen.reinigungsfotos[`foto_${index}`] = await preparePhoto(form.get(`photo_${index}`), label);
+    }
+    kontrollen.reinigung_bestaetigt = true;
     const { error } = await db.from('spuel_dienste').insert({
       spuelmobil: form.get('mobile'),
       dienst_datum: form.get('date'),
@@ -327,7 +409,9 @@ async function submitService(event) {
     });
 
     if (error) throw error;
-    alert('Dienst wurde erfolgreich gespeichert.');
+    alert(Object.values(kontrollen.fehlmengen.posten).some(value => value > 0)
+      ? 'Dienst gespeichert. Das Spülmobil ist wegen fehlendem Geschirr außer Dienst, bis das Auffüllen bestätigt wurde.'
+      : 'Dienst wurde erfolgreich gespeichert. Eine bestehende Sperre bleibt bis zur Auffüllbestätigung bestehen.');
     helperHome();
   } catch (error) {
     alert(`Speichern fehlgeschlagen: ${error.message || 'Bitte Internetverbindung prüfen.'}`);
@@ -404,9 +488,11 @@ async function adminDashboard() {
       <h2>Alle abgeschlossenen Dienste</h2>
       <p>Tippe auf einen Eintrag, um Checkliste, Fehlmengen, Bemerkungen und Unterschrift zu sehen.</p>
     </section>
+    <section id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</section>
     <section id="services" class="service-list"><p class="muted">Dienste werden geladen …</p></section>
     <div class="actions"><button class="secondary" onclick="logout()">Abmelden</button></div>`, 'admin');
 
+  loadMobileStatus(true);
   let data;
   let error;
   try {
@@ -491,6 +577,7 @@ function serviceDetail(id) {
       ${checks.map(([item, complete]) => `<div class="detail-check"><span>${complete ? '✓' : '–'}</span>${esc(item)}</div>`).join('')}
     </section>
     <section class="card"><h2>Fehlende Geschirrteile</h2>${missingDishesHtml(kontrollen)}</section>
+    <section class="card"><h2>Reinigungsfotos</h2>${cleaningPhotosHtml(kontrollen)}</section>
     <section class="card"><h2>Allgemeine Bemerkungen</h2><p>${esc(service.bemerkungen || 'Keine Bemerkungen')}</p></section>
     <section class="card"><h2>Unterschrift</h2><img class="signature-view" src="${esc(service.unterschrift || '')}" alt="Unterschrift"></section>
     <div class="actions">
@@ -580,6 +667,15 @@ function exportPdf(id) {
       documentPdf.text('Unterschrift konnte nicht eingebettet werden.', 14, y + 10);
     }
   }
+  CLEANING_PHOTOS.forEach((label, index) => {
+    const src = kontrollen.reinigungsfotos?.[`foto_${index}`];
+    if (!validPhoto(src)) return;
+    documentPdf.addPage();
+    documentPdf.text(label, 14, 18);
+    const props = documentPdf.getImageProperties(src);
+    const scale = Math.min(180 / props.width, 245 / props.height);
+    documentPdf.addImage(src, 'JPEG', 14, 28, props.width * scale, props.height * scale);
+  });
   documentPdf.save(`DRK-Spuelmobil-${service.dienst_datum}.pdf`);
 }
 
