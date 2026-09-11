@@ -79,7 +79,7 @@ function shell(title, subtitle, body, kind = 'helper') {
           <h1>${esc(title)}</h1>
           <small>${esc(subtitle)}</small>
         </div>
-        <div class="brand-unit"><span>o.V.</span> MOERS</div>
+        <div class="brand-unit"><span>o.V.</span> Moers</div>
       </header>
       <div class="screen-content">${body}</div>
       <footer class="app-footer"><span>Deutsches Rotes Kreuz</span><span>Spülmobil · o.V. Moers</span></footer>
@@ -90,7 +90,7 @@ function shell(title, subtitle, body, kind = 'helper') {
 function home() {
   shell('DRK · Spülmobil', 'Bereitschaft · digitale Einsatzdokumentation', `
     <section class="hero welcome-hero">
-      <p class="eyebrow">WILLKOMMEN</p>
+      <p class="eyebrow">Willkommen</p>
       <h2>Welchen Bereich möchtest du öffnen?</h2>
       <p>Die Helfer-App ist ohne Anmeldung nutzbar. Der Manager ist nur für Beauftragte.</p>
       <div class="choice-grid">
@@ -107,10 +107,10 @@ function home() {
 function helperHome() {
   shell('DRK · Spülmobil', 'Helferbereich · o.V. Moers', `
     <section class="hero welcome-hero">
-      <p class="eyebrow">HELFERBEREICH</p>
-      <div id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</div>
+      <p class="eyebrow">Helferbereich</p>
       <h2>Bereit für den Einsatz?</h2>
       <p>Die Anleitung bleibt während des Einsatzes verfügbar. Den Dienst schließt du erst am Ende ab.</p>
+      <div id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</div>
       <div class="choice-grid">
         <button class="choice-card helper-choice" onclick="serviceForm()">
           <span class="choice-code">A</span><strong>Dienstabschluss</strong><small>Endkontrolle, Fehlmengen und Unterschrift</small><i aria-hidden="true">→</i>
@@ -131,10 +131,12 @@ async function loadMobileStatus(admin = false) {
     const { data, error } = await db.from('spuelmobil_status').select('*').order('spuelmobil');
     if (error || data?.length !== 2) throw error || new Error('Status fehlt');
     if (serial !== viewSerial || !$('#mobile-status')) return;
-    $('#mobile-status').innerHTML = data.map(row => `<div class="notice">
-      <strong>${esc(MOBILES[row.spuelmobil])}: ${row.ausser_dienst ? 'Außer Dienst – Geschirr fehlt' : 'Einsatzbereit'}</strong>
-      ${row.ausser_dienst && admin ? `<button type="button" class="secondary" onclick="confirmRestock('${row.spuelmobil}', '${esc(row.version)}', this)">Geschirr aufgefüllt bestätigen</button>` : ''}
-    </div>`).join('');
+    $('#mobile-status').innerHTML = `<div class="fleet-heading"><span>Einsatzstatus</span><span>2 Spülmobile</span></div><div class="fleet-grid">${data.map(row => `<article class="fleet-card ${row.ausser_dienst ? 'fleet-blocked' : 'fleet-ready'}">
+      <div class="fleet-top"><strong>${esc(MOBILES[row.spuelmobil])}</strong><span class="fleet-icon" aria-hidden="true">${row.ausser_dienst ? '!' : '✓'}</span></div>
+      <span class="fleet-badge">${row.ausser_dienst ? 'Außer Dienst' : 'Einsatzbereit'}</span>
+      <p class="fleet-note">${row.ausser_dienst ? 'Geschirr fehlt. Freigabe nach bestätigtem Auffüllen.' : 'Keine offene Geschirrsperre.'}</p>
+      ${row.ausser_dienst && admin ? `<button type="button" class="secondary restock-button" onclick="confirmRestock('${row.spuelmobil}', '${esc(row.version)}', this)">Geschirr aufgefüllt bestätigen <span aria-hidden="true">→</span></button>` : ''}
+    </article>`).join('')}</div>`;
   } catch {
     if (serial === viewSerial && $('#mobile-status')) $('#mobile-status').textContent = 'Einsatzstatus unbekannt. Bitte Verbindung prüfen oder den Beauftragten kontaktieren.';
   }
@@ -188,6 +190,29 @@ function cleaningPhotosHtml(kontrollen) {
   }).join('')}</div>`;
 }
 
+async function previewCleaningPhoto(input, index) {
+  const currentView = viewSerial;
+  const file = input.files[0];
+  const preview = $(`#photo-preview-${index}`);
+  const state = $(`#photo-state-${index}`);
+  input.setCustomValidity('');
+  preview.innerHTML = '<span aria-hidden="true">＋</span><small>Foto der gereinigten Fläche</small>';
+  input.closest('.photo-upload').classList.remove('has-photo');
+  state.textContent = file ? 'Foto wird geprüft …' : 'Noch kein Foto ausgewählt';
+  if (!file) return;
+  try {
+    const src = await preparePhoto(file, CLEANING_PHOTOS[index]);
+    if (currentView !== viewSerial || input.files[0] !== file) return;
+    preview.innerHTML = `<img src="${esc(src)}" alt="Vorschau: ${esc(CLEANING_PHOTOS[index])}">`;
+    state.textContent = '✓ Foto ausgewählt';
+    input.closest('.photo-upload').classList.add('has-photo');
+  } catch (error) {
+    if (currentView !== viewSerial || input.files[0] !== file) return;
+    state.textContent = error.message;
+    input.setCustomValidity(error.message);
+  }
+}
+
 function steps(items) {
   return `<ol class="steps">${items.map(item => `<li>${esc(item)}</li>`).join('')}</ol>`;
 }
@@ -205,7 +230,7 @@ function documents(back = 'helper', section = 'home') {
     shell('DRK · Spülmobil', 'Dokumentation · o.V. Moers', `
       ${navigation}
       <section class="hero library-intro">
-        <p class="eyebrow">WISSEN AM EINSATZORT</p>
+        <p class="eyebrow">Anleitungen</p>
         <h2>Was benötigst du?</h2>
         <p>Wähle eine Anleitung aus. Alle Inhalte sind für die Nutzung am Handy optimiert.</p>
       </section>
@@ -223,7 +248,7 @@ function documents(back = 'helper', section = 'home') {
   shell('DRK · Spülmobil', `${heading} · o.V. Moers`, `
     ${navigation}
     <section class="card document-page">
-      <p class="eyebrow">DOKUMENTATION</p>
+      <p class="eyebrow">Dokumentation</p>
       <h2>${heading}</h2>
       ${steps(items)}
     </section>
@@ -250,6 +275,7 @@ function serviceForm() {
     <form id="service">
       <div id="mobile-status" aria-live="polite">Einsatzstatus wird geladen …</div>
       <section class="card">
+        <p class="section-kicker">01 · Einsatz</p>
         <h2>Angaben zum Dienst</h2>
         <label>Spülmobil
           <select name="mobile" required>
@@ -268,6 +294,7 @@ function serviceForm() {
       </section>
 
       <section class="card">
+        <p class="section-kicker">02 · Kontrolle</p>
         <h2>Endkontrolle</h2>
         <label class="check"><input type="checkbox" name="setup" required>Aufbau und Betrieb ordnungsgemäß durchgeführt</label>
         ${DISHES.map((item, index) => `<label class="check"><input type="checkbox" name="dish${index}" required>${esc(item)}</label>`).join('')}
@@ -276,20 +303,28 @@ function serviceForm() {
       </section>
 
       <section class="card">
+        <p class="section-kicker">03 · Bestand</p>
         <h2>Fehlmengen Geschirr</h2>
-        <p>Fehlendes Geschirr setzt das Spülmobil automatisch außer Dienst, bis ein Beauftragter das Auffüllen bestätigt.</p>
+        <p class="inline-warning">Fehlendes Geschirr setzt das Spülmobil automatisch außer Dienst, bis ein Beauftragter das Auffüllen bestätigt.</p>
         <p class="muted">Nur fehlende Teile eintragen. Wenn nichts fehlt, alle Felder auf 0 lassen.</p>
         <div class="missing-grid">${missingInputs}</div>
         <label>Bemerkungen zu Fehlmengen<textarea name="missing_notes" placeholder="Zum Beispiel: Beschädigung, Verlust oder Nachbestellung"></textarea></label>
       </section>
 
       <section class="card">
-        <h2>Reinigung mit Fotos bestätigen</h2>
-        <p>Bitte nach der Reinigung jede Klappen-Arbeitsfläche und den Innenraum der Spülmaschine fotografieren. Drei Fotos sind erforderlich. Kamera oder Galerie verwenden; maximal 20 MB pro Foto.</p>
-        ${CLEANING_PHOTOS.map((label, index) => `<label>${esc(label)}<input name="photo_${index}" type="file" accept="image/*" required></label>`).join('')}
+        <p class="section-kicker">04 · Reinigungsnachweis</p>
+        <h2>Sauber und dokumentiert</h2>
+        <p class="muted">Drei Fotos nach der Reinigung aufnehmen oder aus der Galerie auswählen. Maximal 20 MB pro Foto.</p>
+        <div class="photo-upload-grid">${CLEANING_PHOTOS.map((label, index) => `<div class="photo-upload">
+          <label for="photo-${index}"><span class="photo-number">0${index + 1}</span>${esc(label)}</label>
+          <div class="photo-preview" id="photo-preview-${index}"><span aria-hidden="true">＋</span><small>Foto des gereinigten Bereichs</small></div>
+          <input id="photo-${index}" name="photo_${index}" type="file" accept="image/*" required aria-describedby="photo-state-${index}" onchange="previewCleaningPhoto(this, ${index})">
+          <small class="photo-state" id="photo-state-${index}" aria-live="polite">Noch kein Foto ausgewählt</small>
+        </div>`).join('')}</div>
         <label class="check"><input type="checkbox" name="cleaning_confirmed" required>Die drei Fotos zeigen die gereinigten Bereiche dieses Dienstes.</label>
       </section>
       <section class="card">
+        <p class="section-kicker">05 · Abschluss</p>
         <h2>Unterschrift</h2>
         <p class="muted">Bitte mit dem Finger unterschreiben.</p>
         <canvas id="signature" class="signature"></canvas>
@@ -425,7 +460,7 @@ async function submitService(event) {
 function adminLogin() {
   shell('DRK · Spülmobil', 'Beauftragtenbereich · o.V. Moers', `
     <section class="hero welcome-hero">
-      <p class="eyebrow">ANMELDUNG</p>
+      <p class="eyebrow">Beauftragtenbereich</p>
       <h2>Manager öffnen</h2>
       <p>Nur berechtigte Personen können gespeicherte Dienste einsehen.</p>
       <form id="login">
@@ -484,7 +519,7 @@ async function adminDashboard() {
       <button class="menu-item" onclick="documents('admin')">Dokumentation</button>
     </nav>
     <section class="manager-hero">
-      <p class="eyebrow">DIENSTMANAGER</p>
+      <p class="eyebrow">Dienstübersicht</p>
       <h2>Alle abgeschlossenen Dienste</h2>
       <p>Tippe auf einen Eintrag, um Checkliste, Fehlmengen, Bemerkungen und Unterschrift zu sehen.</p>
     </section>
@@ -567,7 +602,7 @@ function serviceDetail(id) {
       <button class="menu-item" onclick="adminDashboard()">Alle Dienste</button>
     </nav>
     <section class="manager-hero">
-      <p class="eyebrow">${esc(serviceLabel(service).toUpperCase())}</p>
+      <p class="eyebrow">${esc(serviceLabel(service))}</p>
       <h2>${esc(service.einsatzort)}</h2>
       <p>${esc(service.dienst_datum)} · ${esc(serviceTime(service))} Uhr</p>
     </section>
